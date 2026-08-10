@@ -27,6 +27,7 @@ Thumbs.db
 # Docker
 docker/nginx/ssl/*.key
 docker/nginx/ssl/*.crt
+docker/nginx/ssl/*.pfx
 
 # Go
 server/go.sum
