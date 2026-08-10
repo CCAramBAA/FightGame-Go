@@ -1,0 +1,14 @@
+# ======== 前端构建 Dockerfile ========
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+
+COPY package.json ./
+RUN npm install --registry=https://registry.npmmirror.com
+
+COPY . .
+RUN npm run build
+
+# ======== 运行阶段（由 Nginx 容器统一承载，此处仅用于构建） ========
+FROM nginx:alpine
+COPY --from=builder /build/dist /usr/share/nginx/html

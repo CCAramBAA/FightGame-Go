@@ -1,0 +1,35 @@
+# 依赖
+node_modules/
+frontend/node_modules/
+admin/node_modules/
+
+# 构建产物
+frontend/dist/
+admin/dist/
+server/bin/
+server/logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 环境变量（生产环境不要提交）
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/nginx/ssl/*.key
+docker/nginx/ssl/*.crt
+
+# Go
+server/go.sum
+
+# 日志
+*.log
