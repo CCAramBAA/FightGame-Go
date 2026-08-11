@@ -1,7 +1,5 @@
 # 依赖
 node_modules/
-frontend/node_modules/
-admin/node_modules/
 
 # 构建产物
 frontend/dist/
@@ -16,7 +14,8 @@ server/logs/
 *.swo
 *~
 
-# 环境变量（生产环境不要提交）
+# 环境变量（不要提交）
+.env
 .env.local
 .env.production
 
@@ -28,9 +27,6 @@ Thumbs.db
 docker/nginx/ssl/*.key
 docker/nginx/ssl/*.crt
 docker/nginx/ssl/*.pfx
-
-# Go
-server/go.sum
 
 # 日志
 *.log

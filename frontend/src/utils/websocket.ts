@@ -5,6 +5,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws'
 
 interface WSMessage {
   type: string
+  data?: any
   [key: string]: any
 }
 
@@ -20,7 +21,11 @@ const messageHandlers: Map<string, Array<(data: any) => void>> = new Map()
 function connect(): void {
   if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return
 
-  ws = new WebSocket(WS_URL)
+  // 带上 JWT token 进行认证
+  const token = localStorage.getItem('token')
+  const url = token ? `${WS_URL}?token=${token}` : WS_URL
+
+  ws = new WebSocket(url)
 
   ws.onopen = () => {
     isConnected.value = true

@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
 import { GameScene } from './scenes/GameScene'
+import { PVEBattleScene } from './scenes/PVEBattleScene'
 
 export class FightGame extends Phaser.Game {
   constructor(parent: string) {
@@ -17,7 +18,7 @@ export class FightGame extends Phaser.Game {
           debug: false,
         },
       },
-      scene: [BootScene, GameScene],
+      scene: [BootScene, PVEBattleScene, GameScene],
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -23,12 +23,38 @@ export class BootScene extends Phaser.Scene {
       progressBox.destroy()
     })
 
-    // TODO: 预加载游戏资源
-    // this.load.image('player', 'assets/player.png')
-    // this.load.spritesheet('fighter', 'assets/fighter.png', { frameWidth: 64, frameHeight: 64 })
+    // 加载像素画角色资源
+    this.load.image('flame_warrior_sprite', 'assets/flame_warrior_sprite.png')
+    this.load.image('flame_warrior_portrait', 'assets/flame_warrior_portrait.png')
+    this.load.spritesheet('flame_warrior_spritesheet', 'assets/flame_warrior_spritesheet.png', { frameWidth: 128, frameHeight: 128 })
+
+    this.load.on('complete', () => {
+      // 创建 spritesheet 动画
+      if (this.anims.exists('flame_idle')) return
+      this.anims.create({
+        key: 'flame_idle',
+        frames: this.anims.generateFrameNumbers('flame_warrior_spritesheet', { start: 0, end: 0 }),
+        frameRate: 4,
+        repeat: -1,
+      })
+      this.anims.create({
+        key: 'flame_attack',
+        frames: this.anims.generateFrameNumbers('flame_warrior_spritesheet', { start: 1, end: 2 }),
+        frameRate: 8,
+        repeat: 0,
+      })
+      this.anims.create({
+        key: 'flame_hurt',
+        frames: [{ key: 'flame_warrior_spritesheet', frame: 3 }],
+        frameRate: 4,
+        repeat: 0,
+      })
+    })
   }
 
   create(): void {
     this.scene.start('GameScene')
+    // 通知外部场景已就绪
+    this.game.events.emit('ready')
   }
 }

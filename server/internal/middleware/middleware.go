@@ -1,85 +1,104 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-// Logger 请求日志中间件
-func Logger() gin.HandlerFunc {
+var jwtSecret []byte
+
+func InitJWT(secret string) {
+	jwtSecret = []byte(secret)
+}
+
+func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "请先登录"})
+			c.Abort()
+			return
+		}
 
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenStr == authHeader {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的token格式"})
+			c.Abort()
+			return
+		}
+
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token已过期或无效"})
+			c.Abort()
+			return
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的token"})
+			c.Abort()
+			return
+		}
+
+		c.Set("token", tokenStr)
+		c.Set("user_id", uint(claims["user_id"].(float64)))
+		c.Set("username", claims["username"].(string))
+		c.Set("role", claims["role"].(string))
 		c.Next()
-
-		latency := time.Since(start)
-		log.Printf("[%s] %s %s %d %v",
-			c.Request.Method,
-			path,
-			c.ClientIP(),
-			c.Writer.Status(),
-			latency,
-		)
 	}
 }
 
-// CORS 跨域中间件
-func CORS(allowedOrigins []string) gin.HandlerFunc {
+func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-
-		allowed := false
-		for _, o := range allowedOrigins {
-			if o == "*" || o == origin {
-				allowed = true
-				break
-			}
+		role, _ := c.Get("role")
+		if role == nil || (role != "admin" && role != "super_admin") {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "无权限"})
+			c.Abort()
+			return
 		}
-		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-		}
+		c.Next()
+	}
+}
 
+func Cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Header("Access-Control-Allow-Credentials", "true")
-
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
-
 		c.Next()
 	}
 }
 
-// Auth JWT 认证中间件
-func Auth(redisClient interface{}) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证令牌"})
-			c.Abort()
-			return
-		}
+// GetToken 从 Context 获取 token 字符串
+func GetToken(c *gin.Context) string {
+	token, _ := c.Get("token")
+	return token.(string)
+}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证格式错误"})
-			c.Abort()
-			return
-		}
+// GetUserID 从 Context 获取用户ID
+func GetUserID(c *gin.Context) uint {
+	id, _ := c.Get("user_id")
+	return id.(uint)
+}
 
-		token := parts[1]
+// GetUsername 从 Context 获取用户名
+func GetUsername(c *gin.Context) string {
+	username, _ := c.Get("username")
+	return username.(string)
+}
 
-		// TODO: 实际 JWT 验证逻辑
-		c.Set("token", token)
-		c.Set("user_id", uint(1))
-
-		c.Next()
-	}
+// GetRole 从 Context 获取角色
+func GetRole(c *gin.Context) string {
+	role, _ := c.Get("role")
+	return role.(string)
 }

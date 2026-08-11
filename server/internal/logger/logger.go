@@ -2,95 +2,122 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
+	"time"
 )
-
-// Logger 应用日志器
-type Logger struct {
-	level string
-	mu    sync.Mutex
-}
 
 var (
-	instance *Logger
-	once     sync.Once
+	infoLogger  *log.Logger
+	warnLogger  *log.Logger
+	errorLogger *log.Logger
+	debugLogger *log.Logger
+	logFile     *os.File
+	recentLogs  []string
+	mu          sync.RWMutex
+	maxRecent   = 500
 )
 
-// Init 初始化日志系统
-func Init(level, logFile string) {
-	once.Do(func() {
-		instance = &Logger{level: level}
+func Init() error {
+	logsDir := filepath.Join(".", "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return fmt.Errorf("create logs dir: %w", err)
+	}
 
-		// 创建日志目录
-		if err := os.MkdirAll("logs", 0755); err != nil {
-			log.Printf("Failed to create logs directory: %v", err)
-		}
+	f, err := os.OpenFile(filepath.Join(logsDir, "server.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
 
-		// 设置日志输出
-		if logFile != "" {
-			file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-			if err != nil {
-				log.Printf("Failed to open log file: %v, using stdout", err)
-			} else {
-				log.SetOutput(file)
-			}
-		}
+	multiInfo := io.MultiWriter(os.Stdout, f)
+	multiWarn := io.MultiWriter(os.Stdout, f)
+	multiError := io.MultiWriter(os.Stdout, f)
 
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
-	})
+	flag := log.Ldate | log.Ltime
+
+	infoLogger = log.New(multiInfo, "[INFO]  ", flag)
+	warnLogger = log.New(multiWarn, "[WARN]  ", flag)
+	errorLogger = log.New(multiError, "[ERROR] ", flag)
+	debugLogger = log.New(multiInfo, "[DEBUG] ", flag)
+	logFile = f
+
+	recentLogs = make([]string, 0, maxRecent)
+
+	Info("Logger initialized")
+	return nil
 }
 
-// log 输出日志
-func (l *Logger) log(level, format string, args ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	msg := fmt.Sprintf(format, args...)
-	log.Printf("[%s] %s", level, msg)
+func recordRecent(level, msg string) {
+	mu.Lock()
+	defer mu.Unlock()
+	entry := fmt.Sprintf("[%s] %s %s", level, time.Now().Format("2006-01-02 15:04:05"), msg)
+	recentLogs = append(recentLogs, entry)
+	if len(recentLogs) > maxRecent {
+		recentLogs = recentLogs[len(recentLogs)-maxRecent:]
+	}
 }
 
-// Sync 关闭日志资源
+func Info(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	if infoLogger != nil {
+		infoLogger.Output(2, msg)
+	}
+	recordRecent("INFO", msg)
+}
+
+func Warn(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	if warnLogger != nil {
+		warnLogger.Output(2, msg)
+	}
+	recordRecent("WARN", msg)
+}
+
+func Error(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	if errorLogger != nil {
+		errorLogger.Output(2, msg)
+	}
+	recordRecent("ERROR", msg)
+}
+
+func Debug(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	if debugLogger != nil {
+		debugLogger.Output(2, msg)
+	}
+	recordRecent("DEBUG", msg)
+}
+
+func Fatalf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	if errorLogger != nil {
+		errorLogger.Output(2, "FATAL: "+msg)
+	}
+	recordRecent("FATAL", msg)
+	if logFile != nil {
+		logFile.Sync()
+	}
+	os.Exit(1)
+}
+
 func Sync() {
-	// 刷新日志缓冲区
-}
-
-// Info 信息日志
-func Info(format string, args ...interface{}) {
-	if instance != nil {
-		instance.log("INFO", format, args...)
+	if logFile != nil {
+		logFile.Sync()
 	}
 }
 
-// Warn 警告日志
-func Warn(format string, args ...interface{}) {
-	if instance != nil {
-		instance.log("WARN", format, args...)
+func ReadRecentLogs(max int) ([]string, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	if max <= 0 || max > len(recentLogs) {
+		max = len(recentLogs)
 	}
-}
-
-// Error 错误日志
-func Error(format string, args ...interface{}) {
-	if instance != nil {
-		instance.log("ERROR", format, args...)
-	}
-}
-
-// Debug 调试日志
-func Debug(format string, args ...interface{}) {
-	if instance != nil {
-		instance.log("DEBUG", format, args...)
-	}
-}
-
-// Infof 格式化信息日志
-func Infof(format string, args ...interface{}) {
-	Info(format, args...)
-}
-
-// Fatalf 致命错误日志并退出
-func Fatalf(format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	log.Fatalf("[FATAL] %s", msg)
+	result := make([]string, max)
+	copy(result, recentLogs[len(recentLogs)-max:])
+	return result, nil
 }

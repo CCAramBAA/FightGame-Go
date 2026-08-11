@@ -1,13 +1,13 @@
 import axios from 'axios'
 
 const apiClient = axios.create({
-  baseURL: '/api/admin',
+  baseURL: '/api',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('admin_token')
+  const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -18,6 +18,12 @@ apiClient.interceptors.response.use(
   (res) => res.data,
   (err) => {
     console.error('Admin API Error:', err)
+    // 401 自动跳转登录页
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('admin_username')
+      window.location.href = '/login'
+    }
     return Promise.reject(err)
   }
 )
